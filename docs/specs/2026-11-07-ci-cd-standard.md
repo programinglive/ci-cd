@@ -87,10 +87,6 @@ Secrets live in each repository's Environment, never in this repository.
   deploy-netlify.yml
   deploy-ssh-systemd.yml
   release.yml
-actions/
-  node-setup/action.yml
-  php-setup/action.yml
-  deploy-evidence/action.yml
 templates/
   ci-node.yml
   ci-php.yml

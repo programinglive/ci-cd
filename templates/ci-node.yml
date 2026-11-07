@@ -1,0 +1,15 @@
+# Copy this file to .github/workflows/ci.yml in your project.
+# Keep the pinned version: @v1 is the moving major tag.
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+jobs:
+  ci:
+    uses: programinglive/ci-cd/.github/workflows/ci-node.yml@v1
+    with:
+      # Windows projects use the MMCH runner:
+      # runner: '["self-hosted","windows","mmch"]'
+      build-command: npm run build

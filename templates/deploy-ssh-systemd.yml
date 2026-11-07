@@ -1,0 +1,19 @@
+# Copy this file to .github/workflows/deploy.yml in a systemd-hosted service.
+# Production deploys require the `production` environment and its reviewer.
+#
+# Secrets to set in the repository's `production` environment:
+#   DEPLOY_HOST, DEPLOY_SSH_KEY
+name: Deploy
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+jobs:
+  deploy:
+    uses: programinglive/ci-cd/.github/workflows/deploy-ssh-systemd.yml@v1
+    with:
+      app-dir: /opt/example
+      service: example.service
+      health-url: https://example.com/health
+      remote-user: deploy
+    secrets: inherit

@@ -1,0 +1,86 @@
+name: CI (PHP)
+
+# Reusable CI for PHP/Laravel projects.
+#
+# Example caller: templates/ci-php.yml
+
+on:
+  workflow_call:
+    inputs:
+      php-version:
+        description: PHP version
+        type: string
+        default: "8.3"
+      php-extensions:
+        description: Comma-separated PHP extensions
+        type: string
+        default: "mbstring, xml, ctype, iconv, bcmath, gd, zip, pdo_mysql, pdo_pgsql"
+      install-command:
+        description: Dependency install command
+        type: string
+        default: "composer install --no-interaction --prefer-dist --no-progress"
+      test-command:
+        description: Test command
+        type: string
+        default: "vendor/bin/paratest --processes=4 --runner=WrapperRunner"
+      static-analysis-command:
+        description: Optional static analysis command; skipped when empty
+        type: string
+        default: ""
+      runner:
+        description: JSON array of runner labels
+        type: string
+        default: '["self-hosted","linux","bw-tools"]'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-php-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Install, test and analyse
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ inputs.php-version }}
+          extensions: ${{ inputs.php-extensions }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Cache Composer
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/composer/files
+            ~/.composer/cache/files
+          key: composer-${{ runner.os }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-
+
+      - name: Install dependencies
+        shell: bash
+        run: ${{ inputs.install-command }}
+
+      - name: Prepare environment
+        shell: bash
+        run: |
+          if [ -f .env.example ] && [ ! -f .env ]; then cp .env.example .env; fi
+          if [ -f artisan ] && [ -f .env ]; then php artisan key:generate --force || true; fi
+
+      - name: Test
+        shell: bash
+        run: ${{ inputs.test-command }}
+
+      - name: Static analysis
+        if: inputs.static-analysis-command != ''
+        shell: bash
+        run: ${{ inputs.static-analysis-command }}

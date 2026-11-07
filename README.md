@@ -51,7 +51,6 @@ Mobile (Expo/EAS) and desktop (Tauri MSI) are deliberately out of scope for v1.
 
 ```
 .github/workflows/   reusable workflows (workflow_call)
-actions/             composite actions shared by the workflows
 templates/           caller workflows copied into projects
 docs/                standards and the design spec
 scripts/             rollout helper

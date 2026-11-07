@@ -1,0 +1,102 @@
+name: Deploy Netlify
+
+# Reusable Netlify deployment. Runs in the `production` environment so the
+# repository can require an approving reviewer.
+#
+# Example caller: templates/deploy-netlify.yml
+
+on:
+  workflow_call:
+    inputs:
+      build-command:
+        description: Build command
+        type: string
+        default: "npm run build"
+      publish-dir:
+        description: Directory to publish
+        type: string
+        default: ".next"
+      node-version:
+        description: Node.js version
+        type: string
+        default: "22"
+      netlify-cli-version:
+        description: Pinned Netlify CLI version
+        type: string
+        default: "27.10.1"
+      runner:
+        description: JSON array of runner labels
+        type: string
+        default: '["self-hosted","linux","bw-tools"]'
+    secrets:
+      NETLIFY_AUTH_TOKEN:
+        required: true
+      NETLIFY_SITE_ID:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-netlify-${{ github.repository }}-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and publish
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install
+        shell: bash
+        run: npm ci --no-audit --no-fund
+
+      - name: Build
+        shell: bash
+        run: ${{ inputs.build-command }}
+
+      - name: Deploy
+        id: deploy
+        shell: bash
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
+        run: |
+          npx --yes netlify-cli@${{ inputs.netlify-cli-version }} deploy \
+            --prod --dir "${{ inputs.publish-dir }}" \
+            --message "Release ${GITHUB_REF_NAME} (${GITHUB_SHA::7})" | tee netlify-deploy.log
+          url=$(grep -Eo 'https://[^ ]+' netlify-deploy.log | tail -1)
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
+
+      - name: Record evidence
+        if: always()
+        shell: bash
+        env:
+          HEALTH_URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          {
+            echo "## Deploy evidence"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Project | ${GITHUB_REPOSITORY} |"
+            echo "| Environment | production |"
+            echo "| Commit | ${GITHUB_SHA} |"
+            echo "| Ref | ${GITHUB_REF_NAME} |"
+            echo "| Target | netlify |"
+            echo "| URL | ${HEALTH_URL:-unknown} |"
+            echo "| Actor | ${GITHUB_ACTOR} |"
+          } >> "$GITHUB_STEP_SUMMARY"

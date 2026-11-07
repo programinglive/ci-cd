@@ -1,0 +1,80 @@
+name: Release
+
+# Reusable release: runs the project's release command and pushes the tag.
+# Deploy workflows trigger from the tag, never from a laptop.
+
+on:
+  workflow_call:
+    inputs:
+      release-command:
+        description: Command that bumps the version and writes CHANGELOG
+        type: string
+        default: "npm run release"
+      node-version:
+        description: Node.js version
+        type: string
+        default: "22"
+      runner:
+        description: JSON array of runner labels
+        type: string
+        default: '["self-hosted","linux","bw-tools"]'
+    secrets:
+      RELEASE_TOKEN:
+        description: Token that can push tags
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.repository }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Tag and publish
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_TOKEN }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - name: Install
+        shell: bash
+        run: npm ci --no-audit --no-fund
+
+      - name: Release
+        shell: bash
+        env:
+          GIT_AUTHOR_NAME: programinglive
+          GIT_AUTHOR_EMAIL: mahatmamahardhika200588@gmail.com
+          GIT_COMMITTER_NAME: programinglive
+          GIT_COMMITTER_EMAIL: mahatmamahardhika200588@gmail.com
+        run: |
+          ${{ inputs.release-command }}
+          git push --follow-tags
+
+      - name: Record evidence
+        if: always()
+        shell: bash
+        run: |
+          {
+            echo "## Release evidence"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Project | ${GITHUB_REPOSITORY} |"
+            echo "| Commit | ${GITHUB_SHA} |"
+            echo "| Ref | ${GITHUB_REF_NAME} |"
+            echo "| Actor | ${GITHUB_ACTOR} |"
+          } >> "$GITHUB_STEP_SUMMARY"

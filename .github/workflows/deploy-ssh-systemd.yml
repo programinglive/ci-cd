@@ -1,0 +1,174 @@
+name: Deploy SSH (release dir + systemd)
+
+# Reusable deployment for services that live on a Linux host with a
+# `<app-dir>/releases/<sha>` layout and a `current` symlink.
+#
+# This is the workflow that replaces manual `scp` + `systemctl restart`.
+# It keeps the previous release, verifies health, and rolls back on failure.
+#
+# Example caller: templates/deploy-ssh-systemd.yml
+
+on:
+  workflow_call:
+    inputs:
+      app-dir:
+        description: Absolute application directory on the host
+        type: string
+        required: true
+      service:
+        description: systemd unit to restart
+        type: string
+        required: true
+      health-url:
+        description: URL polled until it returns 200
+        type: string
+        required: true
+      health-timeout-seconds:
+        description: How long to wait for the health check
+        type: number
+        default: 60
+      remote-user:
+        description: SSH user
+        type: string
+        default: deploy
+      source-path:
+        description: Path in the workspace to upload (use "." for the repo root)
+        type: string
+        default: "."
+      post-deploy-command:
+        description: Optional command run after the symlink switch, inside the release
+        type: string
+        default: ""
+      runner:
+        description: JSON array of runner labels
+        type: string
+        default: '["self-hosted","linux","bw-tools"]'
+    secrets:
+      DEPLOY_HOST:
+        required: true
+      DEPLOY_SSH_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-ssh-${{ github.repository }}-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Upload, switch and verify
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    environment:
+      name: production
+      url: ${{ inputs.health-url }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare SSH
+        shell: bash
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+          cat >> ~/.ssh/config <<EOF
+          Host deploy-target
+            HostName ${{ secrets.DEPLOY_HOST }}
+            User ${{ inputs.remote-user }}
+            IdentityFile ~/.ssh/deploy_key
+            IdentitiesOnly yes
+            StrictHostKeyChecking accept-new
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Upload release
+        shell: bash
+        env:
+          APP_DIR: ${{ inputs.app-dir }}
+          SOURCE_PATH: ${{ inputs.source-path }}
+        run: |
+          release="$APP_DIR/releases/${GITHUB_SHA}"
+          ssh deploy-target "mkdir -p '$release'"
+          rsync -az --delete "$SOURCE_PATH"/ "deploy-target:$release/"
+
+      - name: Switch and restart
+        id: switch
+        shell: bash
+        env:
+          APP_DIR: ${{ inputs.app-dir }}
+          SERVICE: ${{ inputs.service }}
+          POST_DEPLOY: ${{ inputs.post-deploy-command }}
+        run: |
+          release="$APP_DIR/releases/${GITHUB_SHA}"
+          ssh deploy-target "set -e
+            if [ -L '$APP_DIR/current' ]; then readlink -f '$APP_DIR/current' > /tmp/devwf-previous-release || true; fi
+            ln -sfn '$release' '$APP_DIR/current'
+            sudo -n systemctl restart '$SERVICE'
+            if [ -n \"$POST_DEPLOY\" ]; then (cd '$APP_DIR/current' && $POST_DEPLOY); fi
+          "
+          ssh deploy-target "readlink -f '$APP_DIR/current' > /tmp/devwf-new-release"
+
+      - name: Health check
+        id: health
+        shell: bash
+        env:
+          HEALTH_URL: ${{ inputs.health-url }}
+          TIMEOUT: ${{ inputs.health-timeout-seconds }}
+        run: |
+          deadline=$((SECONDS + TIMEOUT))
+          while [ $SECONDS -lt $deadline ]; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTH_URL" || true)
+            if [ "$code" = "200" ]; then
+              echo "status=200" >> "$GITHUB_OUTPUT"
+              echo "Healthy after ${SECONDS}s"
+              exit 0
+            fi
+            sleep 3
+          done
+          echo "status=${code:-timeout}" >> "$GITHUB_OUTPUT"
+          echo "Health check failed: ${code:-timeout}" >&2
+          exit 1
+
+      - name: Rollback on failure
+        if: failure()
+        shell: bash
+        env:
+          APP_DIR: ${{ inputs.app-dir }}
+          SERVICE: ${{ inputs.service }}
+        run: |
+          previous=$(ssh deploy-target "cat /tmp/devwf-previous-release 2>/dev/null || true")
+          if [ -n "$previous" ]; then
+            ssh deploy-target "ln -sfn '$previous' '$APP_DIR/current' && sudo -n systemctl restart '$SERVICE'"
+            echo "Rolled back to $previous" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "No previous release recorded; manual attention required" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Record evidence
+        if: always()
+        shell: bash
+        env:
+          HEALTH_STATUS: ${{ steps.health.outputs.status }}
+          TARGET: ${{ inputs.service }}
+        run: |
+          {
+            echo "## Deploy evidence"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Project | ${GITHUB_REPOSITORY} |"
+            echo "| Environment | production |"
+            echo "| Commit | ${GITHUB_SHA} |"
+            echo "| Ref | ${GITHUB_REF_NAME} |"
+            echo "| Target | ${TARGET} |"
+            echo "| Health | ${HEALTH_STATUS:-not-applicable} |"
+            echo "| URL | ${{ inputs.health-url }} |"
+            echo "| Actor | ${GITHUB_ACTOR} |"
+          } >> "$GITHUB_STEP_SUMMARY"

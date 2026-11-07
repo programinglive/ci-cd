@@ -1,0 +1,14 @@
+# Copy this file to .github/workflows/deploy.yml in a Netlify project.
+# Production deploys require the `production` environment and its reviewer.
+name: Deploy
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+jobs:
+  deploy:
+    uses: programinglive/ci-cd/.github/workflows/deploy-netlify.yml@v1
+    with:
+      build-command: npm run build
+      publish-dir: out
+    secrets: inherit

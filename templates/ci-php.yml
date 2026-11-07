@@ -1,0 +1,12 @@
+# Copy this file to .github/workflows/ci.yml in your Laravel project.
+name: CI
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+jobs:
+  ci:
+    uses: programinglive/ci-cd/.github/workflows/ci-php.yml@v1
+    with:
+      static-analysis-command: vendor/bin/phpstan analyse --no-progress

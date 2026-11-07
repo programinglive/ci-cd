@@ -1,0 +1,91 @@
+name: CI (Node)
+
+# Reusable CI for Node projects. Callers add a 6-line workflow; this file owns
+# the steps so every project runs the same checks.
+#
+# Example caller: templates/ci-node.yml
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: Node.js version
+        type: string
+        default: "22"
+      package-manager:
+        description: npm, pnpm, or yarn
+        type: string
+        default: "npm"
+      install-command:
+        description: Install command
+        type: string
+        default: "npm ci --no-audit --no-fund"
+      test-command:
+        description: Test command
+        type: string
+        default: "npm test"
+      lint-command:
+        description: Optional lint command; skipped when empty
+        type: string
+        default: ""
+      build-command:
+        description: Optional build command; skipped when empty
+        type: string
+        default: ""
+      audit:
+        description: Run npm audit --omit=dev
+        type: boolean
+        default: true
+      runner:
+        description: JSON array of runner labels
+        type: string
+        default: '["self-hosted","linux","bw-tools"]'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-node-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Test, lint and build
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: ${{ inputs.package-manager }}
+
+      - name: Install
+        shell: bash
+        run: ${{ inputs.install-command }}
+
+      - name: Test
+        shell: bash
+        run: ${{ inputs.test-command }}
+
+      - name: Lint
+        if: inputs.lint-command != ''
+        shell: bash
+        run: ${{ inputs.lint-command }}
+
+      - name: Build
+        if: inputs.build-command != ''
+        shell: bash
+        run: ${{ inputs.build-command }}
+
+      - name: Audit production dependencies
+        if: inputs.audit && inputs.package-manager == 'npm'
+        shell: bash
+        run: npm audit --omit=dev --audit-level=high
+
+      # Do not upload arbitrary logs: dependencies and external commands may
+      # write credentials. Diagnostics stay local and sanitised.

@@ -13,7 +13,7 @@
  *   node scripts/rollout.mjs --apply --repos repo-a,repo-b
  */
 
-const { execFileSync } = require('node:child_process');
+import { execFileSync } from 'node:child_process';
 
 const ORG = 'programinglive';
 const BRANCH = 'chore/standard-ci';

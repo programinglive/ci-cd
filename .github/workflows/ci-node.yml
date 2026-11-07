@@ -36,6 +36,14 @@ on:
         description: Run npm audit --omit=dev
         type: boolean
         default: true
+      web-build-command:
+        description: Optional second job for a web subproject; skipped when empty
+        type: string
+        default: ""
+      web-dir:
+        description: Directory of the web subproject
+        type: string
+        default: "web"
       runner:
         description: JSON array of runner labels
         type: string
@@ -89,3 +97,35 @@ jobs:
 
       # Do not upload arbitrary logs: dependencies and external commands may
       # write credentials. Diagnostics stay local and sanitised.
+
+  web:
+    name: Web build and audit
+    if: inputs.web-build-command != ''
+    runs-on: ${{ fromJSON(inputs.runner) }}
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: ${{ inputs.web-dir }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.web-dir }}/package-lock.json
+
+      - name: Install web dependencies
+        shell: bash
+        run: npm ci --no-audit --no-fund
+
+      - name: Build web
+        shell: bash
+        run: ${{ inputs.web-build-command }}
+
+      - name: Audit web dependencies
+        if: inputs.audit
+        shell: bash
+        run: npm audit --omit=dev --audit-level=high

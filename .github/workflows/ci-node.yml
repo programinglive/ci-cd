@@ -44,6 +44,14 @@ on:
         description: Directory of the web subproject
         type: string
         default: "web"
+      shell:
+        description: Shell for run steps; use cmd or powershell on Windows runners
+        type: string
+        default: "bash"
+      cache:
+        description: Dependency cache for setup-node; empty disables it
+        type: string
+        default: "npm"
       runner:
         description: JSON array of runner labels
         type: string
@@ -70,29 +78,29 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: ${{ inputs.package-manager }}
+          cache: ${{ inputs.cache }}
 
       - name: Install
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: ${{ inputs.install-command }}
 
       - name: Test
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: ${{ inputs.test-command }}
 
       - name: Lint
         if: inputs.lint-command != ''
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: ${{ inputs.lint-command }}
 
       - name: Build
         if: inputs.build-command != ''
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: ${{ inputs.build-command }}
 
       - name: Audit production dependencies
         if: inputs.audit && inputs.package-manager == 'npm'
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: npm audit --omit=dev --audit-level=high
 
       # Do not upload arbitrary logs: dependencies and external commands may
@@ -118,14 +126,14 @@ jobs:
           cache-dependency-path: ${{ inputs.web-dir }}/package-lock.json
 
       - name: Install web dependencies
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: npm ci --no-audit --no-fund
 
       - name: Build web
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: ${{ inputs.web-build-command }}
 
       - name: Audit web dependencies
         if: inputs.audit
-        shell: bash
+        shell: ${{ inputs.shell }}
         run: npm audit --omit=dev --audit-level=high

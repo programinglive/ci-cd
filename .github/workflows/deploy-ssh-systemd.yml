@@ -78,14 +78,14 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
-          cat >> ~/.ssh/config <<EOF
-          Host deploy-target
-            HostName ${{ secrets.DEPLOY_HOST }}
-            User ${{ inputs.remote-user }}
-            IdentityFile ~/.ssh/deploy_key
-            IdentitiesOnly yes
-            StrictHostKeyChecking accept-new
-          EOF
+          {
+            echo "Host deploy-target"
+            echo "  HostName ${{ secrets.DEPLOY_HOST }}"
+            echo "  User ${{ inputs.remote-user }}"
+            echo "  IdentityFile ~/.ssh/deploy_key"
+            echo "  IdentitiesOnly yes"
+            echo "  StrictHostKeyChecking accept-new"
+          } >> ~/.ssh/config
           chmod 600 ~/.ssh/config
 
       - name: Upload release

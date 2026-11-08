@@ -122,7 +122,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ inputs.node-version }}
-          cache: npm
+          cache: ${{ inputs.cache }}
           cache-dependency-path: ${{ inputs.web-dir }}/package-lock.json
 
       - name: Install web dependencies

@@ -44,10 +44,6 @@ on:
         description: Directory of the web subproject
         type: string
         default: "web"
-      shell:
-        description: Shell for run steps; use cmd or powershell on Windows runners
-        type: string
-        default: "bash"
       cache:
         description: Dependency cache for setup-node; empty disables it
         type: string
@@ -81,26 +77,21 @@ jobs:
           cache: ${{ inputs.cache }}
 
       - name: Install
-        shell: ${{ inputs.shell }}
         run: ${{ inputs.install-command }}
 
       - name: Test
-        shell: ${{ inputs.shell }}
         run: ${{ inputs.test-command }}
 
       - name: Lint
         if: inputs.lint-command != ''
-        shell: ${{ inputs.shell }}
         run: ${{ inputs.lint-command }}
 
       - name: Build
         if: inputs.build-command != ''
-        shell: ${{ inputs.shell }}
         run: ${{ inputs.build-command }}
 
       - name: Audit production dependencies
         if: inputs.audit && inputs.package-manager == 'npm'
-        shell: ${{ inputs.shell }}
         run: npm audit --omit=dev --audit-level=high
 
       # Do not upload arbitrary logs: dependencies and external commands may
@@ -126,14 +117,11 @@ jobs:
           cache-dependency-path: ${{ inputs.web-dir }}/package-lock.json
 
       - name: Install web dependencies
-        shell: ${{ inputs.shell }}
         run: npm ci --no-audit --no-fund
 
       - name: Build web
-        shell: ${{ inputs.shell }}
         run: ${{ inputs.web-build-command }}
 
       - name: Audit web dependencies
         if: inputs.audit
-        shell: ${{ inputs.shell }}
         run: npm audit --omit=dev --audit-level=high

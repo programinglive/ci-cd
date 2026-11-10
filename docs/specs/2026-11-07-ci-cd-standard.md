@@ -47,12 +47,13 @@ GitHub Environment while still enforcing one standard.
 
 ### 3.2 Runners
 
-- Windows/Node jobs: the existing self-hosted runner on MMCH
-  (`[self-hosted, windows, mmch]`).
-- Linux jobs: a new self-hosted runner on **bw-tools** (`100.77.138.14`,
-  `[self-hosted, linux, bw-tools]`). `docker-alma` no longer exists, and
+- Universal runner: all CI/CD jobs (Node, PHP, Web, Docker, Release) run on the
+  self-hosted Linux runner on **bw-tools** (`100.77.138.14`,
+  `[self-hosted, linux, bw-tools]`). The MMCH Windows runner has been fully
+  decommissioned and migrated to bw-tools. `docker-alma` no longer exists, and
   `bw-app` is production.
-- GitHub-hosted minutes are not used unless a project explicitly opts in.
+- GitHub-hosted minutes are not used unless a project explicitly opts in (e.g.,
+  npm OIDC publishing).
 
 Capacity note: bw-tools is `e2-custom-2-4096` (2 vCPU, 4 GB) and also runs
 `central-mcp-gateway`, `devwf-managed`, and `notification-hub`. CI jobs must be

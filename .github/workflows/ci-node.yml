@@ -77,21 +77,26 @@ jobs:
           cache: ${{ inputs.cache }}
 
       - name: Install
+        shell: bash
         run: ${{ inputs.install-command }}
 
       - name: Test
+        shell: bash
         run: ${{ inputs.test-command }}
 
       - name: Lint
         if: inputs.lint-command != ''
+        shell: bash
         run: ${{ inputs.lint-command }}
 
       - name: Build
         if: inputs.build-command != ''
+        shell: bash
         run: ${{ inputs.build-command }}
 
       - name: Audit production dependencies
         if: inputs.audit && inputs.package-manager == 'npm'
+        shell: bash
         run: npm audit --omit=dev --audit-level=high
 
       # Do not upload arbitrary logs: dependencies and external commands may
@@ -117,11 +122,14 @@ jobs:
           cache-dependency-path: ${{ inputs.web-dir }}/package-lock.json
 
       - name: Install web dependencies
+        shell: bash
         run: npm ci --no-audit --no-fund
 
       - name: Build web
+        shell: bash
         run: ${{ inputs.web-build-command }}
 
       - name: Audit web dependencies
         if: inputs.audit
+        shell: bash
         run: npm audit --omit=dev --audit-level=high

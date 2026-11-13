@@ -16,7 +16,7 @@ concurrency:
 jobs:
   validate:
     name: Validate workflow syntax and integrity
-    runs-on: ["self-hosted", "linux", "bw-tools"]
+    runs-on: ubuntu-latest
     timeout-minutes: 10
 
     steps:

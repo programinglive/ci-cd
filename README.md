@@ -50,11 +50,18 @@ Mobile (Expo/EAS) and desktop (Tauri MSI) are deliberately out of scope for v1.
 ## Layout
 
 ```
-.github/workflows/   reusable workflows (workflow_call)
+.github/workflows/   reusable workflows (workflow_call) and validation pipeline
 templates/           caller workflows copied into projects
 docs/                standards and the design spec
-scripts/             rollout helper
+scripts/             rollout helper and workflow integrity suite (test-workflows.mjs)
 ```
+
+## Self-Validation
+
+Workflow definitions are automatically validated via `.github/workflows/validate-ci.yml`
+and `scripts/test-workflows.mjs` on push and pull request, guaranteeing that:
+- Static shells (`shell: bash`) are explicitly declared for all execution steps without dynamic expressions.
+- Balanced expressions and valid runner labels (`["self-hosted","linux","bw-tools"]`) are enforced.
 
 ## Status
 
